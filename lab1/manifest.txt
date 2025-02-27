@@ -1,0 +1,2 @@
+ui.Main-Class: ui.Main
+Class-Path: command.jar
