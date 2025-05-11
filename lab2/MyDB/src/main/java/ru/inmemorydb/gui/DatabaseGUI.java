@@ -1,13 +1,16 @@
 package ru.inmemorydb.gui;
 
 import ru.inmemorydb.core.*;
+import ru.inmemorydb.util.DateUtils;
 
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
+
 
 public class DatabaseGUI extends JFrame {
     private Database database;
@@ -69,6 +72,10 @@ public class DatabaseGUI extends JFrame {
         JButton removeColumnBtn = new JButton("Удалить столбец");
         removeColumnBtn.addActionListener(e -> removeColumn());
         toolBar.add(removeColumnBtn);
+
+        JButton insertDataBtn = new JButton("Добавить данные");
+        insertDataBtn.addActionListener(e -> insertData());
+        toolBar.add(insertDataBtn);
 
         add(toolBar, BorderLayout.NORTH);
     }
@@ -211,6 +218,80 @@ public class DatabaseGUI extends JFrame {
                         "Ошибка при удалении столбца: " + e.getMessage(),
                         "Ошибка", JOptionPane.ERROR_MESSAGE);
             }
+        }
+    }
+
+    private void insertData() {
+        String selectedTable = tableList.getSelectedValue();
+        if (selectedTable == null) {
+            JOptionPane.showMessageDialog(this,
+                    "Выберите таблицу для добавления данных",
+                    "Ошибка", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        Table table = database.getTable(selectedTable);
+        List<Column> columns = table.getColumns();
+
+        JPanel inputPanel = new JPanel(new GridLayout(columns.size(), 2));
+        List<JTextField> fields = new ArrayList<>();
+
+        for (Column column : columns) {
+            inputPanel.add(new JLabel(column.getName() + " (" + column.getType() + "):"));
+            JTextField field = new JTextField();
+            inputPanel.add(field);
+            fields.add(field);
+        }
+
+        int result = JOptionPane.showConfirmDialog(this, inputPanel,
+                "Добавление данных в таблицу " + selectedTable,
+                JOptionPane.OK_CANCEL_OPTION);
+
+        if (result == JOptionPane.OK_OPTION) {
+            try {
+                Row row = new Row();
+                for (int i = 0; i < columns.size(); i++) {
+                    String value = fields.get(i).getText().trim();
+                    Object parsedValue = parseValue(value, columns.get(i).getType());
+                    row.setValue(columns.get(i).getName(), parsedValue);
+                }
+
+                database.insertInto(selectedTable, Collections.singletonList(row));
+
+                for (int i = 0; i < tabbedPane.getTabCount(); i++) {
+                    if (tabbedPane.getTitleAt(i).equals(selectedTable)) {
+                        TableViewPanel tableViewPanel = (TableViewPanel) tabbedPane.getComponentAt(i);
+                        tableViewPanel.refresh();
+                        break;
+                    }
+                }
+            } catch (Exception e) {
+                JOptionPane.showMessageDialog(this,
+                        "Ошибка при добавлении данных: " + e.getMessage(),
+                        "Ошибка", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
+    private Object parseValue(String value, DataType type) {
+        if (value.equalsIgnoreCase("null")) return null;
+
+        try {
+            switch (type) {
+                case INT:
+                    return Integer.parseInt(value);
+                case STRING:
+                    return value.startsWith("\"") && value.endsWith("\"") ?
+                            value.substring(1, value.length() - 1) : value;
+                case DATE:
+                    return DateUtils.parseDate(value);
+                case BOOLEAN:
+                    return Boolean.parseBoolean(value);
+                default:
+                    return value;
+            }
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Неверный формат для типа " + type + ": " + value);
         }
     }
 }

@@ -8,7 +8,7 @@ public class Table {
     private String name;
     private List<Column> columns = new ArrayList<>();
     private List<Row> rows = new ArrayList<>();
-    private Map<String, Integer> columnIndexMap = new HashMap<>();
+    private Map<String, Integer> columnIndexMap = new LinkedHashMap<>();
     private Map<String, Set<Object>> uniqueValues = new HashMap<>();
 
     public Table(String name, List<Column> columns) {

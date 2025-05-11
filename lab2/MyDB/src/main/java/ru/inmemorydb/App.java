@@ -7,6 +7,7 @@ import ru.inmemorydb.command.Command;
 import ru.inmemorydb.command.CommandParser;
 
 import java.io.File;
+import javax.swing.JOptionPane;
 
 public class App {
     public static void main(String[] args) {
@@ -14,11 +15,35 @@ public class App {
             if (args.length > 0) {
                 runCommandLineMode(args);
             } else {
-                Database db = new Database();
-                try {
-                    db = DatabaseStorage.loadDatabase("my-database.db");
-                } catch (Exception e) {
-                    System.out.println("Не удалось загрузить базу данных: " + e.getMessage());
+                Database db;
+                File dbFile = new File("my-database.db");
+
+                if (dbFile.exists()) {
+                    try {
+                        db = DatabaseStorage.loadDatabase("my-database.db");
+                    } catch (Exception e) {
+                        int choice = JOptionPane.showConfirmDialog(null,
+                                "Не удалось загрузить базу данных. Создать новую?",
+                                "Ошибка загрузки",
+                                JOptionPane.YES_NO_OPTION);
+
+                        if (choice == JOptionPane.YES_OPTION) {
+                            db = new Database();
+                        } else {
+                            return;
+                        }
+                    }
+                } else {
+                    int choice = JOptionPane.showConfirmDialog(null,
+                            "База данных не найдена. Создать новую?",
+                            "База данных",
+                            JOptionPane.YES_NO_OPTION);
+
+                    if (choice == JOptionPane.YES_OPTION) {
+                        db = new Database();
+                    } else {
+                        return;
+                    }
                 }
 
                 DatabaseGUI gui = new DatabaseGUI(db);
@@ -78,3 +103,7 @@ public class App {
         System.out.println("Команда выполнена успешно");
     }
 }
+
+//java -cp target\classes ru.inmemorydb.App
+//javac -d target\classes src\main\java\ru\inmemorydb\core\*.java src\main\java\ru\inmemorydb\\util\*.java src\main\java\ru\inmemorydb\gui\*.java src\main\java\ru\inmemorydb\storage\*.java src\main\java\ru\inmemorydb\command\*.java src\main\java\ru\inmemorydb\App.java//
+//java -cp target\classes ru.inmemorydb.App --db "C:\Users\Kirill Zimaltynov\Desktop\Testing\MyDB\my-database.db" -c "CREATE TABLE users (id INT, name STRING)"

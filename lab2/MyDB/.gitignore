@@ -2,7 +2,11 @@
 out/
 !**/src/main/**/out/
 !**/src/test/**/out/
-
+target/
+my-database.db/
+.idea/
+pom.xml
+MyDB.iml
 ### Eclipse ###
 .apt_generated
 .classpath
