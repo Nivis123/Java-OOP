@@ -47,18 +47,27 @@ public class CarFactory {
     public void updateDelay(String propertyName, int value) {
         delays.put(propertyName, value);
 
-        if (propertyName.equals("BodySupplierDelay") && bodySupplier != null) {
-            bodySupplier.setDelay(value);
-        } else if (propertyName.equals("EngineSupplierDelay") && engineSupplier != null) {
-            engineSupplier.setDelay(value);
-        } else if (propertyName.equals("AccessorySupplierDelay") && accessorySuppliers != null) {
-            for (AccessorySupplier supplier : accessorySuppliers) {
-                supplier.setDelay(value);
-            }
-        } else if (propertyName.equals("DealerDelay") && dealers != null) {
-            for (Dealer dealer : dealers) {
-                dealer.setDelay(value);
-            }
+        switch (propertyName) {
+            case "BodySupplierDelay":
+                if (bodySupplier != null) bodySupplier.setDelay(value);
+                break;
+            case "EngineSupplierDelay":
+                if (engineSupplier != null) engineSupplier.setDelay(value);
+                break;
+            case "AccessorySupplierDelay":
+                if (accessorySuppliers != null) {
+                    for (AccessorySupplier supplier : accessorySuppliers) {
+                        supplier.setDelay(value);
+                    }
+                }
+                break;
+            case "DealerDelay":
+                if (dealers != null) {
+                    for (Dealer dealer : dealers) {
+                        dealer.setDelay(value);
+                    }
+                }
+                break;
         }
     }
 
@@ -67,23 +76,29 @@ public class CarFactory {
         engineSupplier = new EngineSupplier(engineStorage, delays.get("EngineSupplierDelay"));
         accessorySuppliers = new AccessorySupplier[config.getAccessorySuppliers()];
 
+        List<Thread> threadsToStart = new ArrayList<>();
+
         for (int i = 0; i < config.getAccessorySuppliers(); i++) {
             accessorySuppliers[i] = new AccessorySupplier(accessoryStorage, delays.get("AccessorySupplierDelay"));
-            new Thread(accessorySuppliers[i]).start();
+            threadsToStart.add(new Thread(accessorySuppliers[i]));
         }
 
         Worker worker = new Worker(bodyStorage, engineStorage, accessoryStorage, carStorage);
         CarFactoryController controller = new CarFactoryController(carStorage, threadPool, worker, config.getStorageAutoSize() / 2);
-        new Thread(controller).start();
+        threadsToStart.add(new Thread(controller));
 
         dealers = new Dealer[config.getDealers()];
         for (int i = 0; i < config.getDealers(); i++) {
             dealers[i] = new Dealer(i, carStorage, delays.get("DealerDelay"), config.isLogSale());
-            new Thread(dealers[i]).start();
+            threadsToStart.add(new Thread(dealers[i]));
         }
 
-        new Thread(bodySupplier).start();
-        new Thread(engineSupplier).start();
+        threadsToStart.add(new Thread(bodySupplier));
+        threadsToStart.add(new Thread(engineSupplier));
+
+        for (Thread t : threadsToStart) {
+            t.start();
+        }
     }
 
     public void stop() {
