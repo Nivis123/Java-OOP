@@ -1,24 +1,14 @@
 package command.commands;
 
-import calculator.BaseExecutionContext;
-import command.utils.TwoOperand;
+import calculator.ExecutionContext;
+import command.utils.TwoOperandUtils;
 
-import java.util.List;
-
-public class MulCommand implements Command, TwoOperand {
-    private static final String nameCommand = "*";
-
-    public static String getNameCommand() {
-        return nameCommand;
-    }
+public class MulCommand implements Command {
+    public static final String NAME = "*";
 
     @Override
-    public void toDo(BaseExecutionContext exeContext) {
-        List<Double> values = getValues(exeContext);
-        if (values == null) {
-            System.out.println("Error: operation " + nameCommand + " not completed");
-            return;
-        }
-        exeContext.pushStack(values.get(0) * values.get(1));
+    public void execute(ExecutionContext context) {
+        double[] operands = TwoOperandUtils.getOperands(context);
+        context.pushStack(operands[0] * operands[1]);
     }
 }

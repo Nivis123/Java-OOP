@@ -1,21 +1,15 @@
 package command.commands;
 
-import calculator.BaseExecutionContext;
+import calculator.ExecutionContext;
 
 public class CommentCommand implements Command {
-    private static final String nameCommand = "#";
-
-    public static String getNameCommand() {
-        return nameCommand;
-    }
+    public static final String NAME = "#";
 
     @Override
-    public void toDo(BaseExecutionContext exeContext) {
-        try {
-            System.out.println(exeContext.getArg(1));
-        }
-        catch (IndexOutOfBoundsException e) {
-            System.out.println();
+    public void execute(ExecutionContext context) {
+        String comment = context.getArg(1);
+        if (comment != null) {
+            System.out.println(comment);
         }
     }
 }

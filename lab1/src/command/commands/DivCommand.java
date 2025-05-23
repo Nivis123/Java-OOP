@@ -1,31 +1,17 @@
 package command.commands;
 
-import calculator.BaseExecutionContext;
-import command.utils.TwoOperand;
+import calculator.ExecutionContext;
+import command.utils.TwoOperandUtils;
 
-import java.util.ArrayList;
-
-public class DivCommand implements Command, TwoOperand {
-    private static final String nameCommand = "/";
-
-    public static String getNameCommand() {
-        return nameCommand;
-    }
+public class DivCommand implements Command {
+    public static final String NAME = "/";
 
     @Override
-    public void toDo(BaseExecutionContext exeContext) {
-        ArrayList<Double> values = getValues(exeContext);
-        if (values == null) {
-            System.out.println("Error: operation " + nameCommand + " not completed");
-            return;
+    public void execute(ExecutionContext context) {
+        double[] operands = TwoOperandUtils.getOperands(context);
+        if (operands[1] == 0) {
+            throw new IllegalArgumentException("Division by zero");
         }
-        if (values.get(1) == 0.0) {
-            System.out.println("Error: try div by zero");
-            exeContext.pushStack(values.get(1));
-            exeContext.pushStack(values.get(0));
-        }
-        else {
-            exeContext.pushStack(values.get(0) / values.get(1));
-        }
+        context.pushStack(operands[0] / operands[1]);
     }
 }

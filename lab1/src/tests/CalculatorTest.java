@@ -2,35 +2,42 @@ package tests;
 
 import calculator.Calculator;
 import org.junit.Test;
-
 import java.io.*;
 
 import static org.junit.Assert.*;
 
 public class CalculatorTest {
+    @Test
+    public void testUnknownCommand() throws IOException {
+        testOutput("UNKNOWN", "Unknown command: UNKNOWN");
+    }
 
     @Test
-    public void unknownCommand() throws IOException {
-        File file = new File("test_file.txt");
-        try (FileWriter writer = new FileWriter(file)) {
-            writer.write("Bad");
-        }
-        catch (Exception e) {
-            file.delete();
-            throw e;
+    public void testDivisionByZero() throws IOException {
+        testOutput("PUSH 10\nPUSH 0\n/", "Division by zero");
+    }
+
+    @Test
+    public void testDefineCommand() throws IOException {
+        testOutput("DEFINE x 10\nPRINT x", "10.0");
+    }
+
+    private void testOutput(String input, String expectedOutput) throws IOException {
+        File tempFile = File.createTempFile("calc_test_", ".txt");
+        try (FileWriter writer = new FileWriter(tempFile)) {
+            writer.write(input);
         }
 
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        ByteArrayOutputStream outContent = new ByteArrayOutputStream();
         PrintStream originalOut = System.out;
-        System.setOut(new PrintStream(outputStream));
+        System.setOut(new PrintStream(outContent));
 
-        String[] args = new String[]{"test_file.txt"};
-        Calculator calculator = new Calculator();
-        calculator.calculateFile(args);
-        String output = outputStream.toString().trim();
-        assertEquals("Error: unknown command - Bad", output);
-
-        System.setOut(originalOut);
-        file.delete();
+        try {
+            new Calculator().calculateFile(new String[]{tempFile.getAbsolutePath()});
+            assertTrue(outContent.toString().contains(expectedOutput));
+        } finally {
+            System.setOut(originalOut);
+            tempFile.delete();
+        }
     }
 }

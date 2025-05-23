@@ -2,22 +2,21 @@ package calculator;
 
 import java.util.*;
 
-public class BaseExecutionContext implements ExecutionContext {
-
-    private final Map<String, Double> defineMap = new HashMap<>();
+public class CalculatorExecutionContext implements ExecutionContext {
+    private final Map<String, Double> variables = new HashMap<>();
     private final Stack<Double> stack = new Stack<>();
     private final List<String> argList = new ArrayList<>();
 
-    public boolean isDefine(String key) {
-        return defineMap.containsKey(key);
+    public boolean containsVariable(String key) {
+        return variables.containsKey(key);
     }
 
-    public Double getDefine(String key) {
-        return defineMap.get(key);
+    public Double getVariable(String key) {
+        return variables.get(key);
     }
 
-    public void setDefine(String key, Double val) {
-        defineMap.put(key, val);
+    public void setVariable(String key, Double val) {
+        variables.put(key, val);
     }
 
     public void pushStack(Double val) {
@@ -33,11 +32,15 @@ public class BaseExecutionContext implements ExecutionContext {
     }
 
     public String getArg(Integer index) {
+        if (index < 0 || index >= argList.size()) {
+            return null;
+        }
         return argList.get(index);
     }
 
     public void setArgs(String line) {
-        String[] words = line.split(" ");
+        argList.clear();
+        String[] words = line.split("\\s+");
         argList.addAll(Arrays.asList(words));
     }
 

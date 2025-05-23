@@ -1,8 +1,7 @@
 package command.commands;
 
-import calculator.BaseExecutionContext;
+import calculator.ExecutionContext;
 
 public interface Command {
-    void toDo(BaseExecutionContext exeContext);
+    void execute(ExecutionContext context);
 }
-

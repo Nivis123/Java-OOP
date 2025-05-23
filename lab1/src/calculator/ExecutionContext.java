@@ -1,22 +1,15 @@
 package calculator;
 
-interface ExecutionContext {
+import java.util.*;
 
-    boolean isDefine(String key);
-
-    Double getDefine(String key);
-
-    void setDefine(String key, Double val);
-
+public interface ExecutionContext {
+    boolean containsVariable(String key);
+    Double getVariable(String key);
+    void setVariable(String key, Double val);
     void pushStack(Double val);
-
     Double popStack();
-
     boolean stackIsEmpty();
-
     String getArg(Integer index);
-
     void setArgs(String line);
-
     void clearArgs();
 }
