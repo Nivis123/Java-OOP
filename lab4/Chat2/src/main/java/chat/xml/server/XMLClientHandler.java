@@ -1,5 +1,6 @@
 package main.java.chat.xml.server;
 
+import main.java.chat.common.ServerMessageWriter;
 import main.java.chat.Config;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -16,67 +17,78 @@ import java.io.IOException;
 import java.net.Socket;
 import java.util.Map;
 import java.util.UUID;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class XMLClientHandler implements Runnable {
+    private static final Logger logger = Logger.getLogger(XMLClientHandler.class.getName());
     private final Socket clientSocket;
     private final Map<String, String> sessions;
     private final Map<String, String> users;
+    private final ServerMessageWriter messageWriter;
     private String currentSession;
     private String currentUser;
     private boolean running;
 
-    public XMLClientHandler(Socket socket, Map<String, String> sessions, Map<String, String> users) {
+    public XMLClientHandler(Socket socket, Map<String, String> sessions,
+                            Map<String, String> users, ServerMessageWriter messageWriter) {
         this.clientSocket = socket;
         this.sessions = sessions;
         this.users = users;
+        this.messageWriter = messageWriter;
         this.running = true;
     }
 
     @Override
     public void run() {
-        try {
-            DataInputStream in = new DataInputStream(clientSocket.getInputStream());
+        try (DataInputStream in = new DataInputStream(clientSocket.getInputStream())) {
             clientSocket.setSoTimeout(Config.getClientTimeout());
 
             while (running) {
                 int length = in.readInt();
                 byte[] messageBytes = new byte[length];
                 in.readFully(messageBytes);
-                processMessage(new String(messageBytes, "UTF-8"));
+                String xml = new String(messageBytes, "UTF-8");
+
+                Element root = parseMessage(xml);
+                handleCommand(root);
             }
         } catch (IOException e) {
-            System.err.println("Client error: " + e.getMessage());
+            logger.log(Level.WARNING, "Client error: {0}", e.getMessage());
         } finally {
             cleanup();
         }
     }
 
-    private void processMessage(String xml) {
+    private Element parseMessage(String xml) throws IOException {
         try {
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             DocumentBuilder builder = factory.newDocumentBuilder();
             Document doc = builder.parse(new ByteArrayInputStream(xml.getBytes("UTF-8")));
-
-            Element root = doc.getDocumentElement();
-            String commandName = root.getAttribute("name");
-
-            switch (commandName) {
-                case "login":
-                    handleLogin(root);
-                    break;
-                case "logout":
-                    handleLogout();
-                    break;
-                case "message":
-                    handleMessage(root);
-                    break;
-                case "list":
-                    handleList();
-                    break;
-            }
-        } catch (ParserConfigurationException | SAXException | IOException e) {
-            System.err.println("XML parsing error: " + e.getMessage());
+            return doc.getDocumentElement();
+        } catch (ParserConfigurationException | SAXException e) {
+            logger.log(Level.WARNING, "XML parsing error: {0}", e.getMessage());
             sendError("Invalid XML message");
+            throw new IOException("XML parsing error", e);
+        }
+    }
+
+    private void handleCommand(Element root) throws IOException {
+        String commandName = root.getAttribute("name");
+
+        switch (commandName) {
+            case "login":
+                handleLogin(root);
+                break;
+            case "logout":
+                handleLogout();
+                break;
+            case "message":
+                handleMessage(root);
+                break;
+            case "list":
+                handleList();
+                break;
         }
     }
 
@@ -99,12 +111,15 @@ public class XMLClientHandler implements Runnable {
 
         currentSession = UUID.randomUUID().toString();
         currentUser = username;
-        sessions.put(currentSession, clientSocket.getInetAddress().getHostAddress() + ":" + clientSocket.getPort());
-        users.put(currentSession, username);
+
+        synchronized (sessions) {
+            sessions.put(currentSession, clientSocket.getInetAddress().getHostAddress() + ":" + clientSocket.getPort());
+            users.put(currentSession, username);
+        }
 
         sendSuccess("<session>" + currentSession + "</session>");
-        broadcastUserLogin(username);
-        System.out.println(username + " joined the chat");
+        messageWriter.broadcastUserEvent("userlogin", username, currentSession, sessions, users);
+        logger.log(Level.INFO, "{0} joined the chat", username);
     }
 
     private void handleLogout() {
@@ -128,27 +143,25 @@ public class XMLClientHandler implements Runnable {
             return;
         }
 
-        XMLChatServer.broadcastMessage(message, currentSession);
+        messageWriter.broadcastMessage(message, currentSession, sessions, users);
         sendSuccess("");
     }
 
     private void handleList() throws IOException {
         StringBuilder userList = new StringBuilder("<listusers>");
-        for (Map.Entry<String, String> entry : users.entrySet()) {
-            userList.append("<user><name>").append(entry.getValue()).append("</name>")
-                    .append("<type>CHAT_CLIENT</type></user>");
+        synchronized (users) {
+            for (Map.Entry<String, String> entry : users.entrySet()) {
+                userList.append("<user><name>").append(entry.getValue())
+                        .append("</name><type>CHAT_CLIENT</type></user>");
+            }
         }
         userList.append("</listusers>");
         sendSuccess(userList.toString());
     }
 
-    private void sendError(String message) {
-        try {
-            String xml = "<error><message>" + escapeXml(message) + "</message></error>";
-            sendXml(xml);
-        } catch (IOException e) {
-            System.err.println("Error sending error message: " + e.getMessage());
-        }
+    private void sendError(String message) throws IOException {
+        String xml = "<error><message>" + escapeXml(message) + "</message></error>";
+        sendXml(xml);
     }
 
     private void sendSuccess(String content) throws IOException {
@@ -157,44 +170,23 @@ public class XMLClientHandler implements Runnable {
     }
 
     private void sendXml(String xml) throws IOException {
-        DataOutputStream out = new DataOutputStream(clientSocket.getOutputStream());
-        byte[] bytes = xml.getBytes("UTF-8");
-        out.writeInt(bytes.length);
-        out.write(bytes);
-        out.flush();
-    }
-
-    private void broadcastUserLogin(String username) throws IOException {
-        String xml = "<event name=\"userlogin\"><name>" + escapeXml(username) + "</name></event>";
-        for (String session : sessions.keySet()) {
-            if (!session.equals(currentSession)) {
-                XMLChatServer.sendXml(session, xml);
-            }
+        try (DataOutputStream out = new DataOutputStream(clientSocket.getOutputStream())) {
+            byte[] bytes = xml.getBytes("UTF-8");
+            out.writeInt(bytes.length);
+            out.write(bytes);
+            out.flush();
         }
     }
 
     private void cleanup() {
         if (currentSession != null) {
-            sessions.remove(currentSession);
-            users.remove(currentSession);
-            try {
-                broadcastUserLogout(currentUser);
-            } catch (IOException e) {
-                System.err.println("Error broadcasting logout: " + e.getMessage());
-            }
-            System.out.println(currentUser + " left the chat");
+            XMLChatServer.removeClient(currentSession, currentUser);
         }
+
         try {
             clientSocket.close();
         } catch (IOException e) {
-            System.err.println("Error closing socket: " + e.getMessage());
-        }
-    }
-
-    private void broadcastUserLogout(String username) throws IOException {
-        String xml = "<event name=\"userlogout\"><name>" + escapeXml(username) + "</name></event>";
-        for (String session : sessions.keySet()) {
-            XMLChatServer.sendXml(session, xml);
+            logger.log(Level.WARNING, "Error closing socket: {0}", e.getMessage());
         }
     }
 

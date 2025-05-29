@@ -12,8 +12,12 @@ import java.net.Socket;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
 
 public class ClientHandler implements Runnable {
+    private static final Logger logger = Logger.getLogger(ClientHandler.class.getName());
     private final Socket clientSocket;
     private final List<ClientHandler> clients;
     private final Map<String, ChatUser> users;
@@ -45,14 +49,9 @@ public class ClientHandler implements Runnable {
                 }
             }
         } catch (IOException | ClassNotFoundException e) {
-            System.err.println("Ошибка клиента: " + e.getMessage());
+            logger.log(Level.WARNING, "Client error: {0}", e.getMessage());
         } finally {
-            try {
-                JavaSerialChatServer.removeClient(this, currentUser);
-                clientSocket.close();
-            } catch (IOException e) {
-                System.err.println("Ошибка при закрытии сокета: " + e.getMessage());
-            }
+            cleanup();
         }
     }
 
@@ -82,11 +81,14 @@ public class ClientHandler implements Runnable {
 
         String sessionId = UUID.randomUUID().toString();
         currentUser = new ChatUser(username, sessionId);
-        users.put(sessionId, currentUser);
+
+        synchronized (users) {
+            users.put(sessionId, currentUser);
+        }
 
         sendMessage(new ChatMessage("Сервер", sessionId, MessageType.SUCCESS));
         JavaSerialChatServer.broadcastMessage(new ChatMessage(username, "", MessageType.USER_LOGIN), this);
-        System.out.println(username + " присоединился к чату");
+        logger.log(Level.INFO, "{0} joined the chat", username);
     }
 
     private void handleLogout() {
@@ -101,18 +103,31 @@ public class ClientHandler implements Runnable {
 
     private void sendUserList() throws IOException {
         StringBuilder userList = new StringBuilder("Участники чата:\n");
-        for (ChatUser user : users.values()) {
-            userList.append("- ").append(user.getName()).append("\n");
+        synchronized (users) {
+            for (ChatUser user : users.values()) {
+                userList.append("- ").append(user.getName()).append("\n");
+            }
         }
         sendMessage(new ChatMessage("Сервер", userList.toString(), MessageType.USER_LIST));
     }
 
     public void sendMessage(ChatMessage message) {
         try {
-            out.writeObject(message);
-            out.flush();
+            synchronized (out) {
+                out.writeObject(message);
+                out.flush();
+            }
         } catch (IOException e) {
-            System.err.println("Ошибка отправки сообщения: " + e.getMessage());
+            logger.log(Level.WARNING, "Error sending message: {0}", e.getMessage());
+        }
+    }
+
+    private void cleanup() {
+        JavaSerialChatServer.removeClient(this, currentUser);
+        try {
+            clientSocket.close();
+        } catch (IOException e) {
+            logger.log(Level.WARNING, "Error closing socket: {0}", e.getMessage());
         }
     }
 }

@@ -1,30 +1,37 @@
 package main.java.chat.javaserial.server;
 
+import main.java.chat.common.ServerMessageWriter;
 import main.java.chat.common.ChatMessage;
 import main.java.chat.common.ChatUser;
-import main.java.chat.common.MessageType;
+import main.java.chat.common.*;
 import main.java.chat.Config;
 
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class JavaSerialChatServer {
-    private static final Map<String, ChatUser> users = new HashMap<>();
-    private static final List<ClientHandler> clients = new ArrayList<>();
+    private static final Logger logger = Logger.getLogger(JavaSerialChatServer.class.getName());
+    private static final Map<String, ChatUser> users = Collections.synchronizedMap(new ConcurrentHashMap<>());
+    private static final List<ClientHandler> clients = Collections.synchronizedList(new ArrayList<>());
     private static final ExecutorService pool = Executors.newCachedThreadPool();
+    private static ServerMessageWriter messageWriter;
 
-    public static void main(String[] args) {
+    public static void main(String[] args, ServerMessageWriter writer) {
+        messageWriter = writer;
         int port = Config.getServerPort();
 
         try (ServerSocket serverSocket = new ServerSocket(port)) {
-            System.out.println("Сервер чата запущен на порту " + port);
+            logger.log(Level.INFO, "Java Serial Chat Server started on port {0}", port);
 
             while (true) {
                 Socket clientSocket = serverSocket.accept();
@@ -33,26 +40,32 @@ public class JavaSerialChatServer {
                 pool.execute(clientThread);
             }
         } catch (IOException e) {
-            System.err.println("Ошибка сервера: " + e.getMessage());
+            logger.log(Level.SEVERE, "Server error: {0}", e.getMessage());
         } finally {
             pool.shutdown();
         }
     }
 
     public static void broadcastMessage(ChatMessage message, ClientHandler excludeClient) {
-        for (ClientHandler client : clients) {
-            if (client != excludeClient) {
-                client.sendMessage(message);
+        synchronized (clients) {
+            for (ClientHandler client : clients) {
+                if (client != excludeClient) {
+                    client.sendMessage(message);
+                }
             }
         }
     }
 
     public static void removeClient(ClientHandler client, ChatUser user) {
-        clients.remove(client);
+        synchronized (clients) {
+            clients.remove(client);
+        }
         if (user != null) {
-            users.remove(user.getSessionId());
+            synchronized (users) {
+                users.remove(user.getSessionId());
+            }
             broadcastMessage(new ChatMessage(user.getName(), "", MessageType.USER_LOGOUT), null);
-            System.out.println(user.getName() + " покинул чат");
+            logger.log(Level.INFO, "{0} left the chat", user.getName());
         }
     }
 }
