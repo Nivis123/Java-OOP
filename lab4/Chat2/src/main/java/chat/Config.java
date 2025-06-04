@@ -12,6 +12,7 @@ public class Config {
         properties.setProperty("server.host", "localhost");
         properties.setProperty("server.logging", "true");
         properties.setProperty("client.timeout", "300000");
+        properties.setProperty("protocol.xml", "false");
     }
 
     public static int getServerPort() {

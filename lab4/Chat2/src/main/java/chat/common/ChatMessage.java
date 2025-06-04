@@ -16,7 +16,6 @@ public class ChatMessage implements Serializable {
         this.timestamp = new Date();
     }
 
-
     public String getSender() {
         return sender;
     }

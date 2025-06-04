@@ -1,27 +1,25 @@
-package main.java.chat.javaserial.client;
+package main.java.chat;
 
 import main.java.chat.common.ChatMessage;
-
+import main.java.chat.common.MessageType;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
-public class JavaSerialClientGUI extends JFrame {
-    private JavaSerialChatClient client;
+public class ClientGUI extends JFrame {
+    private ChatClient client;
     private final JTextArea chatArea;
     private final JTextField inputField;
     private final JTextField usernameField;
     private final JButton connectButton;
     private final JButton sendButton;
-    private final List<ChatMessage> messageHistory = new ArrayList<>();
+    private final JButton userListButton;
 
-    public JavaSerialClientGUI() {
-        setTitle("Java Serial Chat Client");
+    public ClientGUI() {
+        setTitle("Chat Client");
         setSize(600, 400);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
@@ -44,13 +42,21 @@ public class JavaSerialClientGUI extends JFrame {
         inputField.setEnabled(false);
         sendButton = new JButton("Отправить");
         sendButton.setEnabled(false);
+        userListButton = new JButton("Пользователи");
+        userListButton.setEnabled(false);
+
+        JPanel buttonPanel = new JPanel(new FlowLayout());
+        buttonPanel.add(sendButton);
+        buttonPanel.add(userListButton);
+
         inputPanel.add(inputField, BorderLayout.CENTER);
-        inputPanel.add(sendButton, BorderLayout.EAST);
+        inputPanel.add(buttonPanel, BorderLayout.EAST);
         add(inputPanel, BorderLayout.SOUTH);
 
         connectButton.addActionListener(this::handleConnect);
         sendButton.addActionListener(this::handleSend);
         inputField.addActionListener(this::handleSend);
+        userListButton.addActionListener(e -> client.requestUserList());
 
         addWindowListener(new WindowAdapter() {
             @Override
@@ -70,13 +76,13 @@ public class JavaSerialClientGUI extends JFrame {
         }
 
         try {
-            client = new JavaSerialChatClient();
+            client = new ChatClient();
             client.connect("localhost", 5555, username, this::handleMessage);
-
             usernameField.setEnabled(false);
             connectButton.setEnabled(false);
             inputField.setEnabled(true);
             sendButton.setEnabled(true);
+            userListButton.setEnabled(true);
         } catch (IOException e) {
             JOptionPane.showMessageDialog(this, "Ошибка подключения: " + e.getMessage(),
                     "Ошибка", JOptionPane.ERROR_MESSAGE);
@@ -93,15 +99,15 @@ public class JavaSerialClientGUI extends JFrame {
 
     private void handleMessage(ChatMessage message) {
         SwingUtilities.invokeLater(() -> {
-            messageHistory.add(message);
-            chatArea.append(message.toString() + "\n");
+            if (message.getType() == MessageType.ERROR) {
+                chatArea.append("ОШИБКА: " + message.getMessage() + "\n");
+            } else {
+                chatArea.append(message.toString() + "\n");
+            }
         });
     }
 
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> {
-            JavaSerialClientGUI gui = new JavaSerialClientGUI();
-            gui.setVisible(true);
-        });
+        SwingUtilities.invokeLater(() -> new ClientGUI().setVisible(true));
     }
 }
